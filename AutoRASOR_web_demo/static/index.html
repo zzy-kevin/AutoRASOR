@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AutoRASOR — LFPS &amp; ambiguity acquisition demo</title>
+<link rel="stylesheet" href="/static/styles.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='14'>🔬</text></svg>">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="logo">◈</span>
+    <span class="title">AutoRASOR</span>
+    <span class="subtitle">LFPS &amp; ambiguity acquisition — interactive demo</span>
+  </div>
+  <div class="topbar-right">
+    <span class="chip" id="chip-engine">engine —</span>
+    <span class="chip" id="chip-device">device —</span>
+    <span class="status" id="status-text">starting…</span>
+  </div>
+</header>
+
+<main class="stage">
+  <section class="viewport" data-side="left">
+    <div class="vp-head">
+      <span class="vp-tag">LEFT</span>
+      <span class="vp-label" data-role="label">—</span>
+      <span class="vp-space" data-role="space"></span>
+      <span class="spacer"></span>
+      <span class="vp-scale" data-role="scalebar"></span>
+      <span class="vp-zoom" data-role="zoom">1.0×</span>
+      <button class="icon-btn" data-role="fit" title="Fit to view (double-click canvas)">⤢</button>
+    </div>
+    <div class="vp-body">
+      <canvas data-role="canvas"></canvas>
+      <div class="vp-empty" data-role="empty">no data</div>
+    </div>
+  </section>
+
+  <section class="viewport" data-side="right">
+    <div class="vp-head">
+      <span class="vp-tag">RIGHT</span>
+      <span class="vp-label" data-role="label">—</span>
+      <span class="vp-space" data-role="space"></span>
+      <span class="spacer"></span>
+      <span class="vp-scale" data-role="scalebar"></span>
+      <span class="vp-zoom" data-role="zoom">1.0×</span>
+      <button class="icon-btn" data-role="fit" title="Fit to view (double-click canvas)">⤢</button>
+    </div>
+    <div class="vp-body">
+      <canvas data-role="canvas"></canvas>
+      <div class="vp-empty" data-role="empty">no data</div>
+    </div>
+  </section>
+</main>
+
+<section class="panel" id="panel">
+  <div class="panel-grip">
+    <button id="panel-toggle" title="Collapse / expand the control panel">▾ controls</button>
+    <div class="hoverline" id="hoverline">hover a patch for its numbers</div>
+  </div>
+
+  <div class="panel-grid">
+
+    <!-- ── DISPLAY ─────────────────────────────────────────── -->
+    <div class="card">
+      <h3>Display</h3>
+      <label class="row"><span>Left</span>
+        <select id="layer-left"></select>
+      </label>
+      <label class="row"><span>Right</span>
+        <select id="layer-right"></select>
+      </label>
+      <label class="row"><span>Latent colour</span>
+        <select id="latent-color">
+          <option value="gt">ground-truth ambiguity</option>
+          <option value="gpr">learned ambiguity (GPR)</option>
+        </select>
+      </label>
+      <label class="row"><span>Colormap</span>
+        <select id="cmap">
+          <option value="viridis">viridis</option>
+          <option value="inferno">inferno</option>
+          <option value="magma">magma</option>
+          <option value="plasma">plasma</option>
+          <option value="turbo">turbo</option>
+          <option value="gray">gray</option>
+        </select>
+      </label>
+      <div class="checks">
+        <label><input type="checkbox" id="opt-sync" checked> sync pan/zoom</label>
+        <label><input type="checkbox" id="opt-nn" checked> nearest-neighbour pixels</label>
+        <label><input type="checkbox" id="opt-grid" checked> patch grid</label>
+        <label><input type="checkbox" id="opt-marks" checked> capture markers</label>
+        <label><input type="checkbox" id="opt-steps" checked> step numbers</label>
+        <label><input type="checkbox" id="opt-shared" checked> shared ambiguity scale</label>
+        <label><input type="checkbox" id="opt-evr" checked> PCA variance weighting</label>
+        <label><input type="checkbox" id="opt-follow" checked> tile follows selection</label>
+      </div>
+    </div>
+
+    <!-- ── MICROGRAPH ──────────────────────────────────────── -->
+    <div class="card">
+      <h3>Micrograph</h3>
+      <label class="row"><span>Seed</span>
+        <input type="number" id="mic-seed" value="7" min="0" max="99999" step="1">
+      </label>
+      <div class="btn-row">
+        <button id="btn-new-mic" class="primary">New micrograph</button>
+        <button id="btn-rebuild" title="Rebuild the field for the seed shown">↻</button>
+      </div>
+      <p class="hint">A new field keeps everything the GP has learned so far — the
+      archive is replayed into the surrogate as prior knowledge.</p>
+      <label class="row slider"><span>Global blur σ</span>
+        <input type="range" id="mic-blur" min="0" max="2" step="0.1" value="0.2">
+        <output id="mic-blur-out">0.2</output>
+      </label>
+      <label class="row slider"><span>Noise σ</span>
+        <input type="range" id="mic-noise" min="0" max="8" step="0.2" value="0.4">
+        <output id="mic-noise-out">0.4</output>
+      </label>
+      <label class="row slider"><span>Local blur max</span>
+        <input type="range" id="mic-lblur" min="0" max="3" step="0.1" value="1.0">
+        <output id="mic-lblur-out">1.0</output>
+      </label>
+      <div class="progress" id="build-progress" hidden>
+        <div class="progress-bar"><i id="build-bar"></i></div>
+        <span id="build-msg">…</span>
+      </div>
+    </div>
+
+    <!-- ── POLICY ──────────────────────────────────────────── -->
+    <div class="card">
+      <h3>Acquisition policy</h3>
+      <label class="row"><span>Policy</span>
+        <select id="policy">
+          <option value="ambiguity">Active learning on ambiguity</option>
+          <option value="lfps">LFPS (latent farthest-point)</option>
+          <option value="random">Random (baseline)</option>
+        </select>
+      </label>
+      <label class="row" id="row-acq"><span>Acquisition</span>
+        <select id="acq">
+          <option value="qlognei">qLogNEI</option>
+        </select>
+      </label>
+      <label class="row" id="row-warmup"><span>LFPS warmup</span>
+        <input type="number" id="warmup" value="8" min="0" max="50" step="1">
+      </label>
+      <label class="row"><span>Batch / step</span>
+        <input type="number" id="batch" value="2" min="1" max="8" step="1">
+      </label>
+      <label class="row slider"><span>Budget</span>
+        <input type="range" id="budget" min="2" max="196" step="1" value="40">
+        <output id="budget-out">40</output>
+      </label>
+      <label class="row"><span>Run seed</span>
+        <input type="number" id="run-seed" value="42" min="0" max="99999" step="1">
+      </label>
+      <div class="btn-row">
+        <button id="btn-start" class="primary">Start / restart run</button>
+      </div>
+      <p class="hint" id="policy-hint"></p>
+    </div>
+
+    <!-- ── STEPPING ────────────────────────────────────────── -->
+    <div class="card">
+      <h3>Campaign</h3>
+      <div class="stepper">
+        <button id="btn-first" title="Back to the start of the run">⏮</button>
+        <button id="btn-prev" class="big" title="Previous step (←)">◀</button>
+        <button id="btn-next" class="big primary" title="Next step (→)">▶</button>
+        <button id="btn-end" title="Run to budget">⏭</button>
+      </div>
+      <div class="stepline">
+        <span class="step-now" id="step-now">step 0</span>
+        <span class="muted" id="step-frontier">frontier 0</span>
+      </div>
+      <div class="progress">
+        <div class="progress-bar"><i id="budget-bar"></i></div>
+        <span id="budget-msg">0 / 0 captures</span>
+      </div>
+      <div class="pick" id="pick-box">no pick yet</div>
+      <div class="btn-row">
+        <button id="btn-reset-gpr" class="danger">Reset trained GPR</button>
+      </div>
+      <p class="hint" id="gp-hint"></p>
+    </div>
+
+    <!-- ── METRICS ─────────────────────────────────────────── -->
+    <div class="card">
+      <h3>Readouts</h3>
+      <div class="metrics" id="metrics"></div>
+      <p class="hint">Spearman ρ and top-20 recall compare the GP's learned ambiguity
+      against ground truth. Covering radius is LFPS's own objective: the cosine
+      distance of the worst-covered patch to the archive (lower = better coverage).</p>
+    </div>
+
+  </div>
+
+  <div class="timeline-wrap">
+    <div class="timeline-head">
+      <span>Capture history</span>
+      <span class="legend">
+        <i class="sw warmup"></i>warmup
+        <i class="sw policy"></i>policy pick
+        <i class="sw pending"></i>next pick
+      </span>
+    </div>
+    <div class="timeline" id="timeline"></div>
+  </div>
+</section>
+
+<div class="toast" id="toast" hidden></div>
+
+<script type="module" src="/static/js/app.js"></script>
+</body>
+</html>
