@@ -89,14 +89,22 @@ class AutoRASORPipeline:
             kernel=self.config.kernel,
         )
         self.n_carried = 0
+        self._lfps_done = False
+        self._al_done = False
         for x_feat, y_feat in carried_observations:
-            if self.engine.add_observation_direct(x_feat, y_feat, dedup_label=None):
-                self.n_carried += 1
+            self.add_carried_observation(x_feat, y_feat)
         self.selected_current: List[int] = []
         self._selected_set: set[int] = set()
         self.observations: List[ObservationRecord] = []
         self.selections: List[SelectionRecord] = []
         self.metrics: List[MetricRecord] = []
+
+    def add_carried_observation(self, x_feat: np.ndarray, y_feat: np.ndarray) -> None:
+        """Add a pair from another field without making it selectable here."""
+        if self._al_done:
+            raise RuntimeError("cannot add observations after active learning has finished")
+        if self.engine.add_observation_direct(x_feat, y_feat, dedup_label=None):
+            self.n_carried += 1
 
     def _coordinates(self, index: int) -> Tuple[Optional[int], Optional[int]]:
         if self.grid_shape is None:
@@ -127,7 +135,10 @@ class AutoRASORPipeline:
             predicted_uncertainty_max=std_max,
         ))
 
-    def run(self) -> Dict[str, object]:
+    def run_lfps(self) -> None:
+        """Capture LFPS pairs; callers may then share them across fields."""
+        if self._lfps_done:
+            return
         warmup_count = min(self.config.lfps_warmup_count, self.config.capture_budget)
         warmup = self.engine.warmup_strategy(n_seeds=warmup_count, mode="lfps", rng_seed=self.config.seed) if warmup_count else []
         warmup = [int(i) for i in warmup if int(i) not in self._selected_set][:warmup_count]
@@ -136,7 +147,13 @@ class AutoRASORPipeline:
             for index in warmup:
                 self._observe(index, 0, "lfps_warmup")
         self._record_metrics(0, "lfps_warmup")
+        self._lfps_done = True
 
+    def run_al(self) -> Dict[str, object]:
+        """Complete the remaining budget with ambiguity-driven selection."""
+        self.run_lfps()
+        if self._al_done:
+            return self._result()
         step = 1
         while len(self.selected_current) < self.config.capture_budget:
             remaining = self.config.capture_budget - len(self.selected_current)
@@ -162,6 +179,14 @@ class AutoRASORPipeline:
             self._record_metrics(step, "ambiguity_al", mean, std)
             step += 1
 
+        self._al_done = True
+        return self._result()
+
+    def run(self) -> Dict[str, object]:
+        """Run both stages for a single field."""
+        return self.run_al()
+
+    def _result(self) -> Dict[str, object]:
         return {
             "config": self.config.to_dict(),
             "observations": [asdict(item) for item in self.observations],

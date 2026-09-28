@@ -41,13 +41,7 @@ class FeatureExtractor:
         self._use_hidden_states = (dino_layer != 12)  # Need hidden_states for non-final layers
 
         if self.use_onnx:
-            import sys
-            from pathlib import Path
-            # Add SEM_sim_env to path for ONNX extractor
-            sem_env_dir = str(Path(__file__).parent.parent / "SEM_sim_env")
-            if sem_env_dir not in sys.path:
-                sys.path.insert(0, sem_env_dir)
-            from run_onnx_inference import FeatureExtractorONNX
+            from .feature_extractor_onnx import FeatureExtractorONNX
             print(f"[FeatureExtractor] Using ONNX backend (model={onnx_model_path})...")
             self._onnx = FeatureExtractorONNX(onnx_path=onnx_model_path)
             self.device = 'cpu'
@@ -298,5 +292,4 @@ class FeatureExtractor:
             return outputs.hidden_states[self.dino_layer + 1]
         else:
             return outputs.last_hidden_state
-
 

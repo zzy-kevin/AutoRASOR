@@ -7,8 +7,9 @@ Full code and datasets will be uploaded soon, current repo has a web demo of the
 | Path | Purpose |
 |---|---|
 | `AutoRASOR_web_demo/` | Interactive synthetic simulation and headless evaluation |
-| `autorasor/` | Canonical configuration, two-stage controller, v4 ambiguity/GP engine, DINOv3 feature extraction, and synthetic data generator |
-| `data/` | External data and model layout instructions |
+| `autorasor/` | Configuration, ambiguity/active learning/LFPS setup and code, DINOv3 feature extraction, and synthetic data generator |
+| `data/` | dataset shown in the paper and link to OPMD dataset |
+| `example_pipeline.py` | AutoRASOR pipeline |
 
 ## Installation
 
@@ -33,5 +34,4 @@ It supports LFPS, the full ambiguity-driven active learning campaign, and Random
 
 
 ## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT
