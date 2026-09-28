@@ -1,6 +1,6 @@
 # AutoRASOR - Autonomous Rapid SEM Operator
 
-Full code and datasets will be uploaded soon, current repo has a web demo of the AutoRASOR pipeline.
+See `example_pipeline.py` for AutoRASOR workflow and `\data` for the dataset shown in the paper.
 
 ## Repository layout
 
